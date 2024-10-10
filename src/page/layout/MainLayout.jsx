@@ -1,25 +1,19 @@
-import {Outlet} from "react-router-dom";
-import {Button, Menu} from "antd";
+import {Outlet, useNavigate} from "react-router-dom";
+import { Layout, Menu} from "antd";
 import {
     ContainerOutlined,
     HomeFilled,
     MailOutlined,
-    MenuFoldOutlined,
-    MenuUnfoldOutlined,
 } from "@ant-design/icons";
 import {useState} from "react";
-
-
+import Sider from "antd/es/layout/Sider.js";
+import {Content} from "antd/es/layout/layout.js";
 function MainLayout() {
+    const navigate = useNavigate();
     const [collapsed, setCollapsed] = useState(false);
-    const toggleCollapsed = () => {
-        setCollapsed(!collapsed);
-    };
-
-
     const items = [
         {
-            key: 'home',
+            key: '/',
             icon: <HomeFilled />,
             label: 'Trang chủ',
         },
@@ -29,12 +23,12 @@ function MainLayout() {
             label: 'Quản lý hành khách',
         },
         {
-            key: 'tour_package',
+            key: 'tour-package',
             label: 'Gói tour',
             icon: <MailOutlined />,
         },
         {
-            key: 'tour_instance',
+            key: 'tour-instance',
             label: 'Tổ chức chuyến đi',
             icon: <MailOutlined />,
         },
@@ -44,29 +38,24 @@ function MainLayout() {
             icon: <MailOutlined />,
         },
         {
-            key: 'user_management',
+            key: 'user-management',
             label: 'Quản lý nhân sự',
             icon: <MailOutlined />,
         },
     ];
 
+    const onChange = (e)=>{
+        navigate(e.key)
+    }
+
+
     return(
         <div className="h-[100vh] w-[100vw] flex flex-row">
-            <div>
-                <div
-                    style={{
-                        width: 256,
-                    }}
-                >
-                    <Button
-                        type="primary"
-                        onClick={toggleCollapsed}
-                        style={{
-                            marginBottom: 16,
-                        }}
-                    >
-                        {collapsed ? <MenuUnfoldOutlined/> : <MenuFoldOutlined/>}
-                    </Button>
+            <Layout style={{ minHeight: '100vh' }}>
+                <Sider collapsible collapsed={collapsed} onCollapse={(value) => setCollapsed(value)}>
+                    <div className="logo" >
+
+                    </div>
                     <Menu
                         className="h-[100vh]"
                         defaultSelectedKeys={['1']}
@@ -74,16 +63,19 @@ function MainLayout() {
                         mode="inline"
                         inlineCollapsed={collapsed}
                         items={items}
-
+                        onSelect={onChange}
                     />
-                </div>
-            </div>
-            <div>
-                <Outlet/>
-            </div>
+                </Sider>
+                <Layout>
+                    <Content style={{ margin: '0 16px' }}>
+                        <div>
+                            <Outlet/>
+                        </div>
+                    </Content>
+                </Layout>
+            </Layout>
         </div>
     )
-
 }
 
 export default MainLayout;
