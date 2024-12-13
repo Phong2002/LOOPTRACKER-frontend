@@ -40,8 +40,8 @@ function LoginPage() {
                     <img src={titleLogo} className="h-[60px]" alt="Login" />
                 </div>
                 <div
-                    className="w-[400px] h-[400px] bg-black/25
-                    backdrop-blur-[3px] rounded-[60px]
+                    className="w-[400px] h-[400px] bg-black/30
+                    backdrop-blur-[4px] rounded-[60px]
                     flex flex-col justify-center items-center p-[50px] gap-[20px]"
                 >
                     <LoginForm />

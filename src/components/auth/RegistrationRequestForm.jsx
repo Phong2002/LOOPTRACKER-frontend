@@ -1,4 +1,4 @@
-import {Button, Form, Input, Select} from "antd";
+import {Button, Form, Input, message, Select} from "antd";
 import ImageUploadButton from "../common/ImageUploadButton.jsx";
 import {useDispatch, useSelector} from 'react-redux';
 import {
@@ -7,23 +7,122 @@ import {
     addFileGPLXInputFront,
     addFileGPLXInputBack,
     updateData,
+    updateStep
 } from "../../redux/fearture/RegistrationRequestSlice.jsx"
+import {useEffect, useState} from "react";
+import GhnApiService from "../../service/GhnApiService.jsx";
+import apiService from "../../service/ApiService.jsx";
+import {getErrorMessage} from "../../utils/MessageError.jsx";
 
 function RegisterRequestForm() {
+    const [messageApi, contextHolder] = message.useMessage();
+    const [messageError,setMessageError] = useState("")
+    const [form] = Form.useForm();
+    const [listProvince, setListProvince] = useState([])
+    const [listDistrict, setListDistrict] = useState([])
+    const [listWard, setListWard] = useState([])
+    const [province, setProvince] = useState()
+    const [district, setDistrict] = useState()
+    const [ward, setWard] = useState()
     const dispatch = useDispatch();
     const data = useSelector(state => state.registrationRequest);
 
-    const onFinish = (values) => {
+    const onFinish = async (values) => {
+        setMessageError("")
         dispatch(updateData(values))
+        let dataSend = values;
+        dataSend.address = `${values.ward.label} - ${values.district.label} - ${values.province.label}`
+        messageApi.open({
+            key:"send-request",
+            type: 'loading',
+            content: 'Loading...',
+            duration:20000
+        });
+        const dataForm = new FormData();
+        dataForm.append('registrationRequestJson', JSON.stringify(dataSend));
+        dataForm.append("fileCCCDInputFront",data.fileCCCDInputFront)
+        dataForm.append("fileCCCDInputBack",data.fileCCCDInputBack)
+        dataForm.append("fileGPLXInputFront",data.fileGPLXInputFront)
+        dataForm.append("fileGPLXInputBack",data.fileGPLXInputBack)
+        try{
+            const response = await apiService.postFormData("/registration-request/easy-rider",dataForm)
+            messageApi.open({
+                key:"send-request",
+                type: 'success',
+                content: 'Gửi yêu cầu thành công',
+            });
+            dispatch(updateStep(1));
+        }
+        catch (error){
+            console.log("================ERROR",error)
+            messageApi.open({
+                key:"send-request",
+                type: 'error',
+                content: 'Gửi yêu cầu thất bại',
+            });
+            setMessageError(getErrorMessage(error.response?.data.errorCode))
+        }
+
+
     };
 
     const onFinishFailed = (errorInfo) => {
         console.log('Failed:', errorInfo);
     };
+
+    const onChangeProvince = (selected) => {
+        setProvince(selected)
+
+    }
+
+    const onChangeDistrict = (selected) => {
+        setDistrict(selected)
+    }
+
+    const onChangeWard = (selected) => {
+        console.log("===============")
+        setWard(selected)
+        console.log(selected)
+    }
+    const fetchListProvince = async () => {
+        const response = await GhnApiService.get("/province")
+        setListProvince(response.data)
+    }
+
+    const fetchListDistrict = async () => {
+        const response = await GhnApiService.get("/district", {province_id: province.value})
+        setListDistrict(response.data)
+    }
+
+    const fetchListWard = async () => {
+        const response = await GhnApiService.get("/ward", {district_id: district.value})
+        setListWard(response.data)
+    }
+
+    useEffect(() => {
+        fetchListProvince()
+    }, []);
+
+    useEffect(() => {
+        if (province) {
+            fetchListDistrict();
+            form.setFieldsValue({district: null});
+            form.setFieldsValue({ward: null});
+        }
+    }, [province]);
+
+    useEffect(() => {
+        if (district) {
+            fetchListWard();
+            form.setFieldsValue({ward: null});
+        }
+    }, [district]);
+
+
     return (
         <div className=" w-full">
-
             <Form
+                form={form}
                 onFinish={onFinish}
                 onFinishFailed={onFinishFailed}
                 initialValues={data}
@@ -36,7 +135,7 @@ function RegisterRequestForm() {
                 layout="horizontal"
             >
                 <div
-                    className="flex flex-row w-full items-center justify-around"
+                    className="flex flex-row w-full items-start justify-around"
                 >
                     <div className="w-[45%] h-full">
                         <Form.Item label="Họ"
@@ -50,7 +149,7 @@ function RegisterRequestForm() {
                             <Input/>
                         </Form.Item>
                         <Form.Item label="Tên đệm và tên"
-                                   name="firsName"
+                                   name="firstName"
                                    rules={[
                                        {
                                            required: true,
@@ -59,6 +158,23 @@ function RegisterRequestForm() {
                                    ]}>
                             <Input/>
                         </Form.Item>
+                        <Form.Item label="Giới tính"
+                                   name="gender"
+                                   rules={[
+                                       {
+                                           required: true,
+                                           message: "Giới tính không được để trống"
+                                       },
+                                   ]}>
+                            <Select
+                                options={[
+                                    {value: 'MALE', label: 'Nam'},
+                                    {value: 'FEMALE', label: 'Nữ'},
+                                    {value: 'OTHER', label: 'Khác'},
+                                ]}
+                            />
+                        </Form.Item>
+
                         <Form.Item label="Tỉnh"
                                    name="province"
                                    rules={[
@@ -67,9 +183,19 @@ function RegisterRequestForm() {
                                            message: "Tỉnh không được để trống"
                                        },
                                    ]}>
-                            <Select>
-                                <Select.Option value="demo">Demo</Select.Option>
-                            </Select>
+                            <Select
+                                labelInValue
+                                value={null}
+                                filterOption={(input, option) =>
+                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
+                                showSearch
+                                onChange={onChangeProvince}
+                                options={listProvince.map((province) => {
+                                    return {value: province.ProvinceID, label: province.ProvinceName}
+                                })}
+                            />
+
                         </Form.Item>
                         <Form.Item label="Huyện"
                                    name="district"
@@ -79,8 +205,18 @@ function RegisterRequestForm() {
                                            message: "Huyện không được để trống"
                                        },
                                    ]}>
-                            <Select>
-                                <Select.Option value="demo">Demo</Select.Option>
+                            <Select
+                                labelInValue
+                                value={district}
+                                filterOption={(input, option) =>
+                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
+                                showSearch
+                                onChange={onChangeDistrict}
+                                options={listDistrict.map((district) => {
+                                    return {value: district.DistrictID, label: district.DistrictName}
+                                })}
+                            >
                             </Select>
                         </Form.Item>
                         <Form.Item label="Xã"
@@ -91,9 +227,19 @@ function RegisterRequestForm() {
                                            message: "Xã không được để trống"
                                        },
                                    ]}>
-                            <Select>
-                                <Select.Option value="demo">Demo</Select.Option>
-                            </Select>
+                            <Select
+                                labelInValue
+                                value={ward}
+                                filterOption={(input, option) =>
+                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
+                                showSearch
+                                onChange={onChangeWard}
+                                options={listWard.map((ward) => {
+                                    return {value: ward.WardCode, label: ward.WardName}
+                                })}
+                            />
+
                         </Form.Item>
                         <Form.Item label="Email"
                                    name="email"
@@ -117,9 +263,9 @@ function RegisterRequestForm() {
                         </Form.Item>
 
                     </div>
-                    <div className="w-[45%] h-full ">
+                    <div className="w-[45%] h-full  ">
                         <Form.Item label="Số căn CCCD"
-                                   name="cccd"
+                                   name="citizenIdNumber"
                                    rules={[
                                        {
                                            required: true,
@@ -128,7 +274,7 @@ function RegisterRequestForm() {
                                    ]}>
                             <Input/>
                         </Form.Item>
-                        <div className="flex flex-row justify-around  mb-4">
+                        <div className="flex flex-row justify-around mb-[50px]">
                             <div>
                                 <label>
                                     Mặt trước CCCD
@@ -157,7 +303,7 @@ function RegisterRequestForm() {
                         </div>
 
                         <Form.Item label="Số GPLX "
-                                   name="gplx"
+                                   name="licenseNumber"
                                    rules={[
                                        {
                                            required: true,
@@ -167,7 +313,7 @@ function RegisterRequestForm() {
                             <Input/>
                         </Form.Item>
 
-                        <div className="flex flex-row justify-around mb-4">
+                        <div className="flex flex-row justify-around">
                             <div>
                                 <label>
                                     Mặt trước GPLX
@@ -195,8 +341,14 @@ function RegisterRequestForm() {
                         </div>
                     </div>
                 </div>
+                    <div className="flex justify-center items-center h-[25px] text-red-500 ">
+                        <i>
+                            {messageError}
+                        </i>
+                    </div>
                 <Button htmlType="submit">Gửi yêu cầu đăng ký</Button>
             </Form>
+            {contextHolder}
         </div>
     )
 }

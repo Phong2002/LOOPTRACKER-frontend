@@ -44,7 +44,7 @@ function RegistrationRequestPage(){
         <div style={backgroundImageStyle}>
             <div style={blurOverlayStyle}></div>
             <div
-                className="flex flex-col gap-[30px] items-center bg-white/90 w-[1000px] h-[600px] rounded-[15px] p-[10px]"
+                className="flex flex-col gap-[30px] items-center bg-white/90 w-[1000px] h-[650px] rounded-[15px] p-[10px]"
                 style={{zIndex: 1}}>
                 <div className="flex justify-between items-center w-full">
                     <div className="text-blue-700 font-medium cursor-pointer select-none"
@@ -57,21 +57,21 @@ function RegistrationRequestPage(){
                     </div>
 
                 </div>
-                <div className="w-full flex flex-col gap-[30px]" >
+                <div className="w-full flex flex-col gap-[15px]" >
                     <div className="mx-[30px]">
                         <Steps
                             items={[
                                 {
                                     title: 'Thông tin cá nhân',
-                                    icon: <SolutionOutlined className="cursor-pointer select-none" onClick={()=>dispatch(updateStep(0))}/>,
+                                    icon: <SolutionOutlined className="select-none" onClick={()=>dispatch(updateStep(0))}/>,
                                 },
                                 {
                                     title: 'Xác thực',
-                                    icon: <CommentOutlined onClick={()=>dispatch(updateStep(1))}/>,
+                                    icon: <CommentOutlined onClick={data.stepOpen>=1? ()=>dispatch(updateStep(1)):null}/>,
                                 },
                                 {
                                     title: 'Hoàn thành',
-                                    icon: <FileDoneOutlined className="cursor-pointer select-none" onClick={()=>dispatch(updateStep(2))}/>,
+                                    icon: <FileDoneOutlined className="select-none"  onClick={data.stepOpen>=2? ()=>dispatch(updateStep(2)):null}/>,
                                 },
                             ]}
                             current={data.step}

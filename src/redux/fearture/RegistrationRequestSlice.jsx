@@ -3,16 +3,19 @@ import { createSlice } from '@reduxjs/toolkit';
 const RegistrationRequestSlice = createSlice({
     name: 'registrationRequest',
     initialState: {
-        step: 1,
+        step: 0,
+        stepOpen:0,
         firstName:'',
         lastName:'',
-        province:'',
-        district:'',
-        ward:'',
+        gender:'',
+        province:null,
+        district:null,
+        ward:null,
+        address:'',
         email:'',
         phoneNumber:'',
-        cccd:'',
-        gplx:'',
+        citizenIdNumber:'',
+        licenseNumber:'',
         fileCCCDInputFront:null,
         fileCCCDInputBack:null,
         fileGPLXInputFront:null,
@@ -21,17 +24,22 @@ const RegistrationRequestSlice = createSlice({
     reducers: {
         updateStep(state, action) {
             state.step = action.payload;
+            if(action.payload>state.stepOpen){
+                state.stepOpen = action.payload;
+            }
         },
         updateData(state, action) {
             state.firstName = action.payload.firstName;
             state.lastName = action.payload.lastName;
+            state.gender = action.payload.gender
             state.province = action.payload.province;
             state.district = action.payload.district;
             state.ward = action.payload.ward;
             state.email = action.payload.email;
             state.phoneNumber = action.payload.phoneNumber;
-            state.cccd = action.payload.cccd;
-            state.gplx = action.payload.gplx;
+            state.citizenIdNumber = action.payload.citizenIdNumber;
+            state.licenseNumber = action.payload.licenseNumber;
+            state.address = `${action.payload.ward.label} - ${action.payload.district.label} - ${action.payload.province.label}`
         },
         addFileCCCDInputFront(state, action) {
             console.log("=======================",action.payload)
