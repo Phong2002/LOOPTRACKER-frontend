@@ -73,9 +73,9 @@ function MainLayout() {
             ],
         },
         {
-            key: 'map',
+            key: 'track-travel',
             icon: <HeatMapOutlined />,
-            label: 'Bản đồ',
+            label: 'Theo dõi chuyến đi',
         },
     ];
 

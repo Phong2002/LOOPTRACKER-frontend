@@ -13,7 +13,8 @@ import TourInstancePage from "./page/TourInstancePage.jsx";
 import ItemPage from "./page/ItemPage.jsx";
 import UserManagementPage from "./page/UserManagementPage.jsx";
 import RegistrationRequestManagementPage from "./page/RegistrationRequestManagementPage.jsx";
-import MapPage from "./page/ MapPage.jsx";
+import TrackTravelPage from './page/TrackTravelPage.jsx';
+import TrackingPage from './page/TrackingPage.jsx';
 
 function App() {
   return (
@@ -29,7 +30,9 @@ function App() {
                 <Route path="user-management" element={<UserManagementPage/>} />
                 <Route path="account-management" element={<UserManagementPage/>} />
                 <Route path="registration-request-management" element={<RegistrationRequestManagementPage/>} />
-                <Route path="map" element={<MapPage/>} />
+                <Route path="/track-travel" element={<TrackingPage />} />
+                <Route path="track-travel/:tourInstanceId" element={<TrackTravelPage/>} />
+
             </Route>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/registration-request" element={<RegistrationRequestPage />} />

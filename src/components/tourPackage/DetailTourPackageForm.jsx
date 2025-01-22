@@ -1,459 +1,381 @@
-import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet-routing-machine';
+import {Button, Card, ConfigProvider, Form, Input, message, Modal, Popconfirm, Spin, Typography} from "antd";
+import {CloseOutlined, QuestionCircleOutlined} from "@ant-design/icons";
+import ApiService from "../../service/ApiService.jsx";
+import {getErrorMessage} from "../../utils/MessageError.jsx";
+import React, {useState} from "react";
+import MapWithWaypoints from "../../page/MapWithWayPoints.jsx";
 
-import 'leaflet/dist/leaflet.css';
-import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-
-import { Modal, Radio, Button, Dropdown, Menu, Input, Form } from 'antd';
-
-// Khôi phục icon mặc định của Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon-2x.png',
-    iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png'
-});
-
-const categories = [
-    { value: 'rest', label: 'Điểm dừng chân', color: 'red' },
-    { value: 'breakfast', label: 'Điểm ăn sáng', color: 'orange' },
-    { value: 'lunch', label: 'Điểm ăn trưa', color: 'green' },
-    { value: 'dinner', label: 'Điểm ăn tối', color: 'blue' },
-    { value: 'homestay', label: 'Điểm dừng nghỉ homestay', color: 'purple' }
-];
-
-function MapPage() {
-    const mapRef = useRef(null);
-    const controlRef = useRef(null);
-    const tempMarkerRef = useRef(null);
-
-    const [waypoints, setWaypoints] = useState([]);
-    const markersRef = useRef([]); // Lưu marker tương ứng với mỗi waypoint
-
-    const [selectedPoint, setSelectedPoint] = useState(null);
-
-    // Modal thêm mới waypoint
-    const [showModal, setShowModal] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState(null);
-
-    // Modal sửa vị trí waypoint
-    const [editPositionModalVisible, setEditPositionModalVisible] = useState(false);
-    const [editIndex, setEditIndex] = useState(null);
-    const [editLat, setEditLat] = useState('');
-    const [editLon, setEditLon] = useState('');
-
-    // Modal cập nhật loại waypoint
-    const [updateTypeModalVisible, setUpdateTypeModalVisible] = useState(false);
-    const [updateTypeIndex, setUpdateTypeIndex] = useState(null);
-    const [newCategory, setNewCategory] = useState(null);
-
-    // Kéo để thay đổi độ cao danh sách
-    const [listHeight, setListHeight] = useState(200);
-    const isDraggingRef = useRef(false);
-    const startYRef = useRef(null);
-    const startHeightRef = useRef(null);
-
-    useEffect(() => {
-        const map = L.map('map', {
-            center: [21.028511, 105.804817],
-            zoom: 13
+function DetailTourPackageForm(props) {
+    const [messageApi, contextHolder] = message.useMessage();
+    const [loadingDelete,setLoadingDelete] = useState(false)
+    const [isFetching, setIsFetching] = useState(false);
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [currentDayIndex, setCurrentDayIndex] = useState(null);
+    const [waypointsData, setWaypointsData] = useState([]);
+    const [currentData, setCurrentData] = useState(props.currentData);
+    const [errorMessage, setErrorMessage] = useState("");
+    const [isEdit, setIsEdit] = useState(false);
+    const [variant, setVariant] = useState("borderless")
+    const [listDetailedItineraryDelete, setListDetailedItineraryDelete] = useState([]);
+    const onFinish = async (values) => {
+        setErrorMessage("")
+        messageApi.open({
+            key: "send-request",
+            type: 'loading',
+            content: 'Loading...',
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 25
-        }).addTo(map);
-
-        const control = L.Routing.control({
-            waypoints: [],
-            showAlternatives: false,
-            lineOptions: { styles: [{ color: 'blue', opacity: 0.6, weight: 5 }] },
-            routeWhileDragging: false,
-            addWaypoints: false,
-            show: false,
-            createMarker: () => null
-        }).addTo(map);
-
-        mapRef.current = map;
-        controlRef.current = control;
-
-        map.on('click', (e) => {
-            const latlng = e.latlng;
-            setSelectedPoint(latlng);
-
-            // Xóa marker tạm thời cũ nếu có
-            if (tempMarkerRef.current) {
-                map.removeLayer(tempMarkerRef.current);
-                tempMarkerRef.current = null;
-            }
-
-            // Tạo marker tạm thời
-            const tempMarker = L.marker(latlng).addTo(map);
-            tempMarkerRef.current = tempMarker;
-        });
-
-        const handleMouseMove = (e) => {
-            if (isDraggingRef.current) {
-                const diff = e.clientY - startYRef.current;
-                const newHeight = startHeightRef.current - diff;
-                if (newHeight > 50 && newHeight < window.innerHeight - 100) {
-                    setListHeight(newHeight);
-                }
-            }
-        };
-
-        const handleMouseUp = () => {
-            isDraggingRef.current = false;
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-
-        return () => {
-            map.remove();
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, []);
-
-    useEffect(() => {
-        // Cập nhật tuyến đường khi thay đổi waypoints
-        if (controlRef.current) {
-            const latLngs = waypoints.map((wp) => L.latLng(wp.lat, wp.lon));
-            controlRef.current.setWaypoints(latLngs);
+        const tourPackage = {
+            ...values.tourPackage,
+            day: values.detailedItinerary.length,
+            night: values.detailedItinerary.length - 1
         }
-    }, [waypoints]);
 
-    const handleOpenModal = () => {
-        if (!selectedPoint) return;
-        setShowModal(true);
-    };
+        let detailedItinerary = values.detailedItinerary
 
-    const handleConfirmWaypoint = () => {
-        if (selectedPoint && mapRef.current && selectedCategory) {
-            const map = mapRef.current;
-            const newIndex = waypoints.length;
-
-            // Xóa marker tạm thời
-            if (tempMarkerRef.current) {
-                map.removeLayer(tempMarkerRef.current);
-                tempMarkerRef.current = null;
-            }
-
-            // Tìm color tương ứng
-            const cat = categories.find(c => c.value === selectedCategory);
-            const bgColor = cat ? cat.color : 'red';
-
-            const divIcon = L.divIcon({
-                html: `<div class="circle-marker" style="background:${bgColor};">${newIndex + 1}</div>`,
-                className: '',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
-
-            const newMarker = L.marker(selectedPoint, { icon: divIcon }).addTo(map);
-
-            // Thêm waypoint
-            setWaypoints(prev => [...prev, {
-                lat: selectedPoint.lat,
-                lon: selectedPoint.lng,
-                type: selectedCategory
-            }]);
-
-            // Lưu marker
-            markersRef.current.push(newMarker);
-
-            // Reset
-            setSelectedPoint(null);
-            setSelectedCategory(null);
-            setShowModal(false);
+        detailedItinerary.forEach((item, index) => {
+            item.day = index + 1;
+            item.wayPoints.forEach((waypoint, index) => {
+                waypoint.index = index +1
+            })
+        })
+        const data = {
+            tourPackage,
+            detailedItinerary,
+            listIdDelete: listDetailedItineraryDelete
         }
-    };
 
-    const handleCloseModal = () => {
-        setSelectedCategory(null);
-        setShowModal(false);
-    };
-
-    const handleMouseDownOnHandle = (e) => {
-        isDraggingRef.current = true;
-        startYRef.current = e.clientY;
-        startHeightRef.current = listHeight;
-        e.preventDefault();
-    };
-
-    const handleClickWaypointItem = (wp) => {
-        if (mapRef.current) {
-            mapRef.current.setView([wp.lat, wp.lon], 15);
-        }
-    };
-
-    // Xóa waypoint
-    const deleteWaypoint = (index) => {
-        setWaypoints(prev => {
-            const newWps = [...prev];
-            newWps.splice(index, 1);
-
-            // Xóa marker khỏi map
-            const marker = markersRef.current[index];
-            if (marker && mapRef.current) {
-                mapRef.current.removeLayer(marker);
-            }
-
-            // Xóa marker khỏi markersRef
-            markersRef.current.splice(index, 1);
-
-            // Cập nhật lại icon cho các marker sau khi xóa
-            markersRef.current.forEach((m, i) => {
-                const wp = newWps[i];
-                const cat = categories.find(c => c.value === wp.type);
-                const bgColor = cat ? cat.color : 'red';
-                const newIcon = L.divIcon({
-                    html: `<div class="circle-marker" style="background:${bgColor};">${i + 1}</div>`,
-                    className: '',
-                    iconSize: [30,30],
-                    iconAnchor: [15,15]
+        try {
+            const response = await ApiService.put("/tour-package/update", data)
+            if (response) {
+                props.refreshData()
+                setCurrentData(props.form)
+                setListDetailedItineraryDelete([])
+                messageApi.open({
+                    key: "send-request",
+                    type: 'success',
+                    content: 'Cập nhật gói tour thành công!',
                 });
-                m.setIcon(newIcon);
+            }
+        } catch (error) {
+            messageApi.open({
+                key: "send-request",
+                type: 'error',
+                content: 'Cập nhật gói tour thất bại!',
             });
+            setErrorMessage(getErrorMessage(error.response.data.errorCode))
+        }
+    };
 
-            return newWps;
+    const openModal = (dayIndex) => {
+        const detailedItinerary = props.form.getFieldValue('detailedItinerary') || [];
+        console.log("==============detailedItinerary==",detailedItinerary)
+        const currentWaypoints = detailedItinerary[dayIndex]?.wayPoints ?detailedItinerary[dayIndex].wayPoints : [];
+        console.log("==============detailedItinerary[dayIndex]==",detailedItinerary[dayIndex])
+        console.log("==============currentWaypoints==",currentWaypoints)
+
+        setWaypointsData(currentWaypoints);
+        setCurrentDayIndex(dayIndex);
+        setIsModalVisible(true);
+    };
+
+    const closeModal = () => {
+        setIsModalVisible(false);
+    };
+
+    const saveWaypoints = (newWaypoints) => {
+        const detailedItinerary = props.form.getFieldValue('detailedItinerary') || [];
+        const updatedItinerary = [...detailedItinerary];
+        updatedItinerary[currentDayIndex] = {
+            ...updatedItinerary[currentDayIndex],
+            wayPoints: newWaypoints // Lưu dưới dạng JSON string
+        };
+        props.form.setFieldsValue({ detailedItinerary: updatedItinerary });
+        closeModal();
+    };
+
+
+    const confirmDeleteTourPackage = async () => {
+        messageApi.open({
+            key: "delete-tour-package",
+            type: 'loading',
+            content: 'Loading...',
         });
-    };
-
-    // Sửa vị trí waypoint
-    const startEditPosition = (index) => {
-        const wp = waypoints[index];
-        setEditIndex(index);
-        setEditLat(wp.lat.toFixed(5));
-        setEditLon(wp.lon.toFixed(5));
-        setEditPositionModalVisible(true);
-    };
-
-    const handleSavePosition = () => {
-        if (editIndex != null && !isNaN(parseFloat(editLat)) && !isNaN(parseFloat(editLon))) {
-            const newLat = parseFloat(editLat);
-            const newLon = parseFloat(editLon);
-
-            setWaypoints(prev => {
-                const newWps = [...prev];
-                newWps[editIndex] = {
-                    ...newWps[editIndex],
-                    lat: newLat,
-                    lon: newLon
-                };
-
-                // Cập nhật vị trí marker
-                const marker = markersRef.current[editIndex];
-                marker.setLatLng([newLat, newLon]);
-
-                return newWps;
-            });
-
-            setEditPositionModalVisible(false);
-            setEditIndex(null);
+        const param = {
+            tourPackageId: currentData.tourPackage.id
         }
-    };
-
-    const handleCancelPositionEdit = () => {
-        setEditPositionModalVisible(false);
-        setEditIndex(null);
-    };
-
-    // Cập nhật loại waypoint
-    const startUpdateType = (index) => {
-        setUpdateTypeIndex(index);
-        setNewCategory(waypoints[index].type);
-        setUpdateTypeModalVisible(true);
-    };
-
-    const handleUpdateType = () => {
-        if (updateTypeIndex != null && newCategory) {
-            setWaypoints(prev => {
-                const newWps = [...prev];
-                newWps[updateTypeIndex] = {
-                    ...newWps[updateTypeIndex],
-                    type: newCategory
-                };
-
-                // Cập nhật icon marker
-                const marker = markersRef.current[updateTypeIndex];
-                const wp = newWps[updateTypeIndex];
-                const cat = categories.find(c => c.value === wp.type);
-                const bgColor = cat ? cat.color : 'red';
-                const newIcon = L.divIcon({
-                    html: `<div class="circle-marker" style="background:${bgColor};">${updateTypeIndex + 1}</div>`,
-                    className: '',
-                    iconSize: [30,30],
-                    iconAnchor: [15,15]
+        try {
+            const response = await ApiService.delete("/tour-package/delete", param)
+            if (response) {
+                props.refreshData()
+                props.closeModal()
+                messageApi.open({
+                    key: "delete-tour-package",
+                    type: 'success',
+                    content: 'Xóa gói tour thành công!',
                 });
-                marker.setIcon(newIcon);
-
-                return newWps;
+            }
+        } catch (error) {
+            messageApi.open({
+                key: "delete-tour-package",
+                type: 'error',
+                content: 'Xóa gói tour thất bại!',
             });
-
-            setUpdateTypeModalVisible(false);
-            setUpdateTypeIndex(null);
-            setNewCategory(null);
         }
+    }
+
+    const onFinishFailed = (errorInfo) => {
+        setErrorMessage("")
     };
 
-    const handleCancelUpdateType = () => {
-        setUpdateTypeModalVisible(false);
-        setUpdateTypeIndex(null);
-        setNewCategory(null);
-    };
+    const turnOnEditMode = () => {
+        setIsEdit(true)
+        setVariant("outlined")
+    }
 
-    // Menu cho mỗi waypoint (xóa, sửa vị trí, cập nhật loại)
-    const getWaypointMenu = (index) => (
-        <Menu>
-            <Menu.Item key="1" onClick={() => startEditPosition(index)}>
-                Sửa vị trí
-            </Menu.Item>
-            <Menu.Item key="2" onClick={() => startUpdateType(index)}>
-                Cập nhật loại
-            </Menu.Item>
-            <Menu.Item key="3" danger onClick={() => deleteWaypoint(index)}>
-                Xóa
-            </Menu.Item>
-        </Menu>
-    );
+    const turnOffEditMode = () => {
+        props.form.setFieldsValue(currentData)
+        setListDetailedItineraryDelete([])
+        setIsEdit(false)
+        setVariant("borderless")
+    }
 
     return (
-        <div style={{ height: "100vh", width: "100%", display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '10px' }}>
-                {selectedPoint ? (
-                    <div>Đã chọn vị trí: {selectedPoint.lat.toFixed(5)}, {selectedPoint.lng.toFixed(5)}</div>
-                ) : (
-                    <div>Hãy click lên bản đồ để chọn vị trí</div>
-                )}
-                <Button type="primary" onClick={handleOpenModal} disabled={!selectedPoint}>
-                    Thêm điểm dừng
-                </Button>
-            </div>
-
-            <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                <div id="map" style={{ flex: '1 1 auto' }}></div>
-
-                <div
-                    style={{
-                        height: '5px',
-                        background: '#ccc',
-                        cursor: 'row-resize'
-                    }}
-                    onMouseDown={handleMouseDownOnHandle}
-                ></div>
-
-                <div
-                    style={{
-                        height: `${listHeight}px`,
-                        overflowY: 'auto',
-                        background: '#f0f2f5',
-                        padding: '10px'
-                    }}
+        <div className="overflow-y-scroll h-[500px]">
+            <Form
+                labelCol={{span: 6}}
+                wrapperCol={{span: 18}}
+                form={props.form}
+                name="tour_package_form"
+                style={{maxWidth: 800}}
+                className="px-2"
+                layout="horizontal"
+                onFinish={onFinish}
+                onFinishFailed={(errorInfo) => {
+                    onFinishFailed(errorInfo)
+                    message.error("Vui lòng kiểm tra lại các trường bị lỗi.");
+                }}
+            >
+                <Form.Item
+                    label="Mã gói tour"
+                    name={["tourPackage", "id"]}
+                    rules={[{required: true, message: "ID không được để trống"}]}
                 >
-                    <h3>Danh sách các điểm dừng</h3>
-                    <div style={{ maxHeight: '100%', overflowY: 'auto' }}>
-                        {waypoints.length === 0 && <div>Chưa có điểm dừng nào.</div>}
-                        {waypoints.map((wp, index) => {
-                            const cat = categories.find(c => c.value === wp.type);
-                            return (
-                                <div
-                                    key={index}
-                                    style={{
-                                        background: '#fff',
-                                        marginBottom: '8px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        padding: '8px',
-                                        position: 'relative'
-                                    }}
+                    <Input readOnly={!isEdit} variant={variant}/>
+                </Form.Item>
+
+                <Form.Item
+                    label="Tên gói tour"
+                    name={["tourPackage", "tourName"]}
+                    rules={[{required: true, message: "Tên gói không được để trống"}]}
+                >
+                    <Input readOnly={!isEdit} variant={variant}/>
+                </Form.Item>
+
+                <Form.Item
+                    label="Giá"
+                    name={["tourPackage", "price"]}
+                    rules={[{required: true, message: "Giá không được để trống"}]}
+                >
+                    <Input readOnly={!isEdit} variant={variant}/>
+                </Form.Item>
+
+                <Form.Item
+                    label="Mô tả"
+                    name={["tourPackage", "description"]}
+                    rules={[{required: true, message: "Mô tả không được để trống"}]}
+                >
+                    <Input.TextArea rows={4} readOnly={!isEdit} variant={variant}/>
+                </Form.Item>
+                <div className="font-semibold text-neutral-800">Lịch trình chi tiết</div>
+                <Form.List
+                    name="detailedItinerary"
+                    validateTrigger={["onChange", "onBlur"]}
+                    rules={[
+                        {
+                            validator: async (_, value) => {
+                                if (!value || value.length === 0) {
+                                    return Promise.reject(new Error("Không được để trống lịch trình."));
+                                }
+                            },
+                        },
+                    ]}
+                >
+                    {(fields, {add, remove}, {errors}) => (
+                        <>
+                            {fields.map((field,index) => (
+                                <Card
+                                    className="my-2"
+                                    key={field.key + 1}
+                                    size="small"
+                                    title={`Ngày ${field.name + 1}`}
+                                    extra={isEdit ?
+                                        <CloseOutlined onClick={() => {
+                                            const currentItinerary = props.form.getFieldValue("detailedItinerary");
+                                            if (currentItinerary[field.name]) {
+                                                setListDetailedItineraryDelete([...listDetailedItineraryDelete, currentItinerary[field.name].id])
+                                            }
+                                            remove(field.name)
+                                        }
+                                        }/> : <div/>
+                                    }
                                 >
-                                    <div
-                                        style={{ cursor: 'pointer' }}
-                                        onClick={() => handleClickWaypointItem(wp)}
+                                    <Form.Item
+                                        {...field}
+                                        label="Di chuyển từ"
+                                        name={[field.name, "from"]}
+                                        rules={[{required: true, message: "Không được để trống"}]}
                                     >
-                                        <strong>#{index + 1}</strong>: {cat ? cat.label : wp.type}<br />
-                                        Lat: {wp.lat.toFixed(5)}, Lon: {wp.lon.toFixed(5)}
+                                        <Input readOnly={!isEdit} variant={variant}/>
+                                    </Form.Item>
+
+                                    <Form.Item
+                                        {...field}
+                                        label="Đến"
+                                        name={[field.name, "to"]}
+                                        rules={[{required: true, message: "Không được để trống"}]}
+                                    >
+                                        <Input readOnly={!isEdit} variant={variant}/>
+                                    </Form.Item>
+
+                                    <Form.Item
+                                        {...field}
+                                        label="Mô tả"
+                                        name={[field.name, "description"]}
+                                        rules={[{required: true, message: "Không được để trống"}]}
+                                    >
+                                        <Input.TextArea rows={3} readOnly={!isEdit} variant={variant}/>
+                                    </Form.Item>
+                                    {/* Nút mở modal MapWithWaypoints */}
+                                    <div className={"flex justify-center items-center"}>
+                                        <Button
+                                            type="primary"
+                                            className={"w-24"}
+                                            onClick={() => openModal(index)}
+                                            block
+                                        >
+                                            Lộ trình chi tiết
+                                        </Button>
                                     </div>
-                                    <div style={{ position: 'absolute', top: '8px', right: '8px' }}>
-                                        <Dropdown overlay={getWaypointMenu(index)} trigger={['click']}>
-                                            <Button>...</Button>
-                                        </Dropdown>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                    {/* Trường lưu dữ liệu waypoint (ẩn) */}
+                                    <Form.Item
+                                        {...field}
+                                        name={[field.name, "waypoints"]}
+                                        style={{ display: 'none' }}
+                                    >
+                                        <Input.TextArea />
+                                    </Form.Item>
+                                </Card>
+                            ))}
+                            {isEdit ?
+                                <Button type="dashed" onClick={() => add()} block>
+                                    + Thêm Ngày
+                                </Button>
+                                :
+                                ''
+                            }
+
+                            {/* Hiển thị lỗi nếu toàn bộ Form.List không hợp lệ */}
+                            <Form.ErrorList className="flex justify-center text-red-500" errors={errors}/>
+                        </>
+                    )}
+                </Form.List>
+                {/*<Form.Item noStyle shouldUpdate>*/}
+                {/*    {() => (*/}
+                {/*        <Typography>*/}
+                {/*            <pre>{JSON.stringify(props.form.getFieldsValue(), null, 2)}</pre>*/}
+                {/*        </Typography>*/}
+                {/*    )}*/}
+                {/*</Form.Item>*/}
+                <div className="flex justify-center items-center text-red-500">
+                    {errorMessage}
+                </div>
+                {!isEdit ?
+                    <span className="flex flex-row gap-4 justify-center items-center w-full">
+                        <Form.Item className="flex justify-center">
+                            <Button className="my-4" onClick={turnOnEditMode}>
+                                Chỉnh sửa
+                            </Button>
+                        </Form.Item>
+                        <Form.Item className="flex justify-center">
+                            <ConfigProvider theme={{token: {colorPrimary: '#ff0000'},}}>
+                                <Popconfirm
+                                    title="Xóa gói tour"
+                                    description={`Bạn có chắc chắn muốn xóa gói : ${props.currentData?.tourPackage?.id ?? ''} - ${props.currentData?.tourPackage?.tourName ?? ''} ?`}
+                                    icon={<QuestionCircleOutlined style={{color: 'red'}}/>}
+                                    // open={open}
+                                    // onOpenChange={handleOpenChange}
+                                    onConfirm={confirmDeleteTourPackage}
+                                    // onCancel={cancel}
+                                    okText="Xóa"
+                                    cancelText="Không"
+                                >
+                                    <Button danger>Xóa gói</Button>
+                                </Popconfirm>
+                            </ConfigProvider>
+                        </Form.Item>
+                    </span>
+                    :
+                    <div className="flex flex-row gap-4 justify-center items-center w-full">
+                        <Form.Item>
+                            <Button htmlType="submit" type="primary" className="my-4" onClick={() => {
+                                console.log("===========listDelete", listDetailedItineraryDelete)
+                            }}>
+                                Cập nhật
+                            </Button>
+                        </Form.Item>
+                        <Form.Item>
+                            <Button className="my-4" onClick={turnOffEditMode}>
+                                Hủy
+                            </Button>
+                        </Form.Item>
+                    </div>
+                }
+            </Form>
+            {contextHolder}
+
+            {/* Modal chứa MapWithWaypoints */}
+            <Modal
+                title={`Lộ trình chi tiết cho Ngày ${currentDayIndex !== null ? currentDayIndex + 1 : ''}`}
+                visible={isModalVisible}
+                onCancel={closeModal}
+                footer={[
+                    <Button key="back" onClick={closeModal}>
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        onClick={() => saveWaypoints(waypointsData)}
+                        disabled={isFetching}
+                    >
+                        Lưu
+                    </Button>,
+                ]}
+                width={1000} // Tăng kích thước modal
+                style={{ top: 20 }} // Đẩy modal xuống để tăng không gian hiển thị
+                bodyStyle={{ height: '80vh', overflow: 'hidden', position: 'relative' }} // Đặt chiều cao của modal và ẩn cuộn
+            >
+                <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }} id="modal-content">
+                    <div style={{ flex: 1, overflow: 'auto' }}>
+                        {isFetching && (
+                            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                                <Spin /> Đang tải lộ trình...
+                            </div>
+                        )}
+                        <MapWithWaypoints
+                            initialWaypoints={waypointsData}
+                            onWaypointsChange={setWaypointsData}
+                            osrmServiceUrl="http://localhost:5000/route/v1"
+                            profile="bike"
+                            language="vi"
+                            reverseGeocodingUrl="https://nominatim.openstreetmap.org/reverse"
+                        />
                     </div>
                 </div>
-            </div>
-
-            {/* Modal thêm điểm dừng */}
-            <Modal
-                title="Chọn loại điểm dừng"
-                visible={showModal}
-                onOk={handleConfirmWaypoint}
-                onCancel={handleCloseModal}
-                okButtonProps={{ disabled: !selectedCategory }}
-            >
-                <Radio.Group onChange={(e) => setSelectedCategory(e.target.value)} value={selectedCategory}>
-                    {categories.map(cat => (
-                        <Radio key={cat.value} value={cat.value}>
-                            {cat.label}
-                        </Radio>
-                    ))}
-                </Radio.Group>
             </Modal>
-
-            {/* Modal sửa vị trí */}
-            <Modal
-                title="Sửa vị trí"
-                visible={editPositionModalVisible}
-                onOk={handleSavePosition}
-                onCancel={handleCancelPositionEdit}
-            >
-                <Form layout="vertical">
-                    <Form.Item label="Vĩ độ (lat)">
-                        <Input value={editLat} onChange={(e) => setEditLat(e.target.value)} />
-                    </Form.Item>
-                    <Form.Item label="Kinh độ (lon)">
-                        <Input value={editLon} onChange={(e) => setEditLon(e.target.value)} />
-                    </Form.Item>
-                </Form>
-            </Modal>
-
-            {/* Modal cập nhật loại */}
-            <Modal
-                title="Cập nhật loại điểm dừng"
-                visible={updateTypeModalVisible}
-                onOk={handleUpdateType}
-                onCancel={handleCancelUpdateType}
-                okButtonProps={{ disabled: !newCategory }}
-            >
-                <Radio.Group onChange={(e) => setNewCategory(e.target.value)} value={newCategory}>
-                    {categories.map(cat => (
-                        <Radio key={cat.value} value={cat.value}>
-                            {cat.label}
-                        </Radio>
-                    ))}
-                </Radio.Group>
-            </Modal>
-
-            <style>{`
-        .circle-marker {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          color: white;
-          width: 30px;
-          height: 30px;
-          border-radius: 50%;
-          font-weight: bold;
-          border: 2px solid white;
-        }
-      `}</style>
         </div>
     );
 }
 
-export default MapPage;
+export default DetailTourPackageForm;
